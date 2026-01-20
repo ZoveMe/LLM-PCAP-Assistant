@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>LLM‑PCAP‑Assistant</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Inter, Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 30px 35px 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #d1e8ff;
+            margin-bottom: 30px;
+        }
+
+        .upload-box {
+            border: 2px dashed rgba(255, 255, 255, 0.4);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s, border-color 0.3s;
+            margin-bottom: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .upload-box:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #4fd1ff;
+        }
+
+        .upload-box input {
+            display: none;
+        }
+
+        .upload-box span {
+            display: block;
+            font-size: 0.95rem;
+            color: #cde9ff;
+            line-height: 1.4;
+        }
+
+        .upload-box strong {
+            font-size: 1.1rem;
+            color: #ffffff;
+            display: block;
+        }
+
+        .prompt-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        textarea {
+            flex: 1;
+            resize: none;
+            min-height: 70px;
+            border-radius: 12px;
+            border: none;
+            padding: 15px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        button {
+            background: linear-gradient(135deg, #4fd1ff, #0077ff);
+            border: none;
+            color: #fff;
+            font-weight: 600;
+            padding: 0 25px;
+            border-radius: 12px;
+            cursor: pointer;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .response {
+            margin-top: 25px;
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 15px;
+            padding: 20px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            min-height: 80px;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 0.75rem;
+            margin-top: 25px;
+            color: #b9dfff;
+        }
+
+        .upload-box.dragover {
+            background: rgba(79, 209, 255, 0.15);
+            border-color: #4fd1ff;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #9fe3ff;
+        }
+
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid #4fd1ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        button.loading {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📡 LLM‑PCAP‑Assistant</h1>
+    <p class="subtitle">Upload a PCAP file and ask natural‑language questions about network traffic</p>
+
+    <label class="upload-box" id="uploadBox">
+        <input type="file" id="fileInput" accept=".pcap"/>
+        <strong>Click to upload</strong>
+        <span>or drag & drop a .pcap file here</span>
+        <div class="file-name" id="fileName"></div>
+    </label>
+
+    <div class="prompt-area">
+        <textarea placeholder="Ask a question about the captured packets…"></textarea>
+        <button id="askBtn">Ask
+            <div class="spinner" id="spinner"></div>
+        </button>
+    </div>
+
+    <div class="response">
+        <strong>Answer</strong>
+        <div id="answerBox" style="margin-top:8px;">
+            <em>Answer will appear here…</em>
+        </div>
+    </div>
+
+    <div class="response">
+        <strong>Summary</strong>
+        <ul id="summaryBox" style="margin-top:8px;">
+            <li><em>Summary will appear here…</em></li>
+        </ul>
+    </div>
+
+
+    <div class="footer">
+        Built for interactive network traffic analysis with LLMs
+    </div>
+</div>
+<script>
+    let selectedFile = null;
+    let sessionId = null;
+
+    async function uploadPcap() {
+        const answerBox = document.getElementById("answerBox");
+        const summaryBox = document.getElementById("summaryBox");
+
+        answerBox.textContent = "Uploading & processing PCAP with Zeek…";
+        summaryBox.innerHTML = "<li>Please wait</li>";
+
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        try {
+            const res = await fetch("http://127.0.0.1:8000/upload", {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                sessionId = null;
+                answerBox.textContent = "Upload failed";
+                summaryBox.innerHTML = `<li>${data.detail || "Unknown error"}</li>`;
+                return;
+            }
+
+            sessionId = data.session_id;
+            answerBox.textContent = "PCAP processed successfully.";
+            summaryBox.innerHTML = `
+      <li>Session ID created</li>
+      <li>conn: ${data.counts.conn}, dns: ${data.counts.dns}, http: ${data.counts.http}</li>
+    `;
+        } catch (e) {
+            sessionId = null;
+            answerBox.textContent = "Upload failed";
+            summaryBox.innerHTML = "<li>Could not contact backend</li>";
+        }
+    }
+
+    const uploadBox = document.getElementById('uploadBox');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const askBtn = document.getElementById('askBtn');
+    const spinner = document.getElementById('spinner');
+
+    uploadBox.addEventListener('dragover', e => {
+        e.preventDefault();
+        uploadBox.classList.add('dragover');
+    });
+
+    uploadBox.addEventListener('dragleave', () => {
+        uploadBox.classList.remove('dragover');
+    });
+
+    uploadBox.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadBox.classList.remove('dragover');
+        handleFile(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', () => {
+        handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+        if (!file) return;
+
+        if (!file.name.endsWith('.pcap')) {
+            alert('Only .pcap files are allowed');
+            fileInput.value = '';
+            fileName.textContent = '';
+            selectedFile = null;
+            return;
+        }
+
+        selectedFile = file;
+        fileName.textContent = `Uploaded: ${file.name}`;
+        uploadPcap();
+    }
+
+
+    askBtn.addEventListener('click', async () => {
+        const textarea = document.querySelector('textarea');
+
+        if (!sessionId || !textarea.value.trim()) {
+            alert('Please upload a PCAP file and enter a question');
+            return;
+        }
+
+        askBtn.classList.add('loading');
+        spinner.style.display = 'inline-block';
+
+        const formData = new FormData();
+        formData.append("session_id", sessionId);
+        formData.append('question', textarea.value);
+
+        try {
+            const res = await fetch("http://127.0.0.1:8000/ask", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await res.json();
+
+            const answerBox = document.getElementById("answerBox");
+            const summaryBox = document.getElementById("summaryBox");
+
+            if (!res.ok) {
+                answerBox.textContent = "Backend error";
+                summaryBox.innerHTML = "";
+                const li = document.createElement("li");
+                li.textContent = data.detail || "Unknown error";
+                summaryBox.appendChild(li);
+                return;
+            }
+
+            answerBox.textContent = data.answer || "No answer returned";
+
+            summaryBox.innerHTML = "";
+            (data.summary || []).forEach(item => {
+                const li = document.createElement("li");
+                li.textContent = item;
+                summaryBox.appendChild(li);
+            });
+
+
+        } catch (e) {
+            document.querySelector('.response').textContent = 'Error contacting backend';
+        } finally {
+            spinner.style.display = 'none';
+            askBtn.classList.remove('loading');
+        }
+    });
+</script>
+</body>
+</html>

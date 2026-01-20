@@ -1,8 +1,12 @@
+from pathlib import Path
 from app.parse import load_pcap
 from app.llm_engine import ask_llm
 
-file = "app/test1-50 paketi.pcap"  # Exact relative path
-df = load_pcap(file, packet_limit=50)
+BASE_DIR = Path(__file__).resolve().parent
+PCAP_PATH = BASE_DIR / "test1-50 paketi.pcap"
+
+df = load_pcap(str(PCAP_PATH), packet_limit=50)
+
 
 print("📦 First 5 packets loaded:")
 print(df.head())
